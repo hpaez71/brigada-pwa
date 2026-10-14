@@ -1,0 +1,68 @@
+name: Backend · Reglas, índices y Cloud Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firestore.indexes.json
+      - storage.rules
+      - firebase.json
+      - functions/**
+      - tests/**
+  pull_request:
+    paths:
+      - firestore.rules
+      - storage.rules
+      - functions/**
+      - tests/**
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Pruebas de reglas (emulador)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm install -g firebase-tools
+      - name: Verificar que las funciones cargan
+        working-directory: functions
+        run: npm ci && npm run check
+      - name: Reglas de seguridad
+        run: npm run test:rules
+
+  deploy:
+    name: Desplegar en Firebase
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dependencias de functions
+        working-directory: functions
+        run: npm ci
+      - name: Variables de entorno de functions
+        env:
+          FUNCTIONS_ENV: ${{ secrets.FUNCTIONS_ENV }}
+        run: printf '%s\n' "$FUNCTIONS_ENV" > functions/.env
+      - name: Autenticación con Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Desplegar
+        run: |
+          npm install -g firebase-tools
+          firebase deploy --only firestore,storage,functions \
+            --project "${{ secrets.FIREBASE_PROJECT_ID }}" --non-interactive --force

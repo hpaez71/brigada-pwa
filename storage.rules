@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// Reglas de Firebase Storage. El rol proviene de los custom claims.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function rank() {
+      return {'admin': 4, 'coordinador': 3, 'jefe_brigada': 2, 'brigadista': 1}
+        .get(request.auth.token.get('role', 'none'), 0);
+    }
+    function isMember() { return signedIn() && rank() >= 1; }
+    function isCoord()  { return signedIn() && rank() >= 3; }
+    function maxMB(n) { return request.resource.size < n * 1024 * 1024; }
+    function isImage() { return request.resource.contentType.matches('image/.*'); }
+    function isMedia() { return request.resource.contentType.matches('image/.*|video/.*'); }
+    function isDoc() {
+      return request.resource.contentType.matches(
+        'application/pdf|text/plain|application/msword|application/vnd.openxmlformats-officedocument.*|application/vnd.ms-excel');
+    }
+
+    // Fotos de perfil
+    match /usuarios/{uid}/{file} {
+      allow read: if isMember();
+      allow create, update: if (request.auth.uid == uid || isCoord()) && isImage() && maxMB(5);
+      allow delete: if request.auth.uid == uid || isCoord();
+    }
+
+    // Evidencias: inmutables (no se sobrescriben ni eliminan)
+    match /evidencias/{grupo}/{file} {
+      allow read: if isMember();
+      allow create: if isMember() && (isMedia() || isDoc()) && maxMB(150);
+      allow update, delete: if false;
+    }
+
+    // Adjuntos del chat
+    match /chat/{canal}/{file} {
+      allow read: if isMember();
+      allow create: if isMember() && (isMedia() || isDoc()) && maxMB(50);
+      allow update, delete: if false;
+    }
+
+    // Planos de sedes
+    match /sedes/{sedeId}/{file} {
+      allow read: if isMember();
+      allow create, update: if isCoord() && (isImage() || isDoc()) && maxMB(30);
+      allow delete: if isCoord();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
