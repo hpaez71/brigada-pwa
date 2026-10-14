@@ -1,21 +1,9 @@
 name: Backend · Reglas, índices y Cloud Functions
 
+# Desactivado: el backend se despliega manualmente con `firebase deploy`.
+# Para reactivar el despliegue automático, restaure los disparadores push/pull_request
+# y configure los secrets descritos en docs/DESPLIEGUE.md (paso 7).
 on:
-  push:
-    branches: [main]
-    paths:
-      - firestore.rules
-      - firestore.indexes.json
-      - storage.rules
-      - firebase.json
-      - functions/**
-      - tests/**
-  pull_request:
-    paths:
-      - firestore.rules
-      - storage.rules
-      - functions/**
-      - tests/**
   workflow_dispatch:
 
 jobs:
