@@ -16,7 +16,7 @@
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
     "@mui/icons-material": "^6.4.0",
-    "@mui/material": "^6.4.0",
+    "@mui/material": "^9.5.0",
     "exceljs": "^4.4.0",
     "firebase": "^11.1.0",
     "idb-keyval": "^6.2.1",
