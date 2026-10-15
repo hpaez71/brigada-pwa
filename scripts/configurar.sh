@@ -23,6 +23,9 @@ echo "   Configuración de Brigadas de Emergencia"
 echo "=============================================="
 echo -e "${N}"
 
+# Trae la última versión del proyecto (correcciones publicadas en GitHub)
+git pull -q --rebase --autostash 2>/dev/null || true
+
 # ---------------------------------------------------------------- 1
 paso "1/7 Herramientas"
 if ! command -v firebase >/dev/null 2>&1; then

@@ -27,7 +27,14 @@ admin.initializeApp();
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
 
-setGlobalOptions({ region: process.env.FUNCTIONS_REGION || 'us-central1', maxInstances: 30, memory: '512MiB' });
+// Los proyectos nuevos tienen una cuota baja de instancias por región.
+// 3 instancias por función bastan para brigadas de decenas o cientos de personas;
+// súbalo con FUNCTIONS_MAX_INSTANCES (functions/.env) si crece la operación.
+setGlobalOptions({
+  region: process.env.FUNCTIONS_REGION || 'us-central1',
+  maxInstances: Number(process.env.FUNCTIONS_MAX_INSTANCES || 3),
+  memory: '256MiB',
+});
 
 const APP_URL = () => (process.env.APP_URL || '').replace(/\/?$/, '/');
 const ORG = () => process.env.ORG_NAME || 'Organización';
