@@ -27,7 +27,7 @@ echo -e "${N}"
 git pull -q --rebase --autostash 2>/dev/null || true
 
 # ---------------------------------------------------------------- 1
-paso "1/7 Herramientas"
+paso "1/8 Herramientas"
 if ! command -v firebase >/dev/null 2>&1; then
   echo "Instalando Firebase CLI (1-2 minutos)…"
   npm install -g firebase-tools --no-audit --no-fund --loglevel=error
@@ -35,7 +35,7 @@ fi
 echo "Firebase CLI $(firebase --version)"
 
 # ---------------------------------------------------------------- 2
-paso "2/7 Iniciar sesión en Firebase"
+paso "2/8 Iniciar sesión en Firebase"
 if firebase projects:list >/dev/null 2>&1; then
   echo "Sesión ya iniciada."
 else
@@ -46,7 +46,7 @@ else
 fi
 
 # ---------------------------------------------------------------- 3
-paso "3/7 Proyecto"
+paso "3/8 Proyecto"
 read -rp "ID del proyecto Firebase [brigada-pws]: " PROJECT
 PROJECT=${PROJECT:-brigada-pws}
 printf '{\n  "projects": {\n    "default": "%s"\n  }\n}\n' "$PROJECT" > .firebaserc
@@ -54,7 +54,7 @@ firebase use "$PROJECT" >/dev/null
 echo "Proyecto: $PROJECT"
 
 # ---------------------------------------------------------------- 4
-paso "4/7 Región"
+paso "4/8 Región"
 LOC=$(firebase firestore:databases:get "(default)" --json 2>/dev/null \
   | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log((j.result||j).locationId||"")}catch{console.log("")}})' || true)
 case "$LOC" in
@@ -68,7 +68,7 @@ read -rp "Región para las Cloud Functions [$REGION]: " R_IN
 REGION=${R_IN:-$REGION}
 
 # ---------------------------------------------------------------- 5
-paso "5/7 Datos de la organización"
+paso "5/8 Datos de la organización"
 ADMIN_EMAIL=""
 while [[ ! "$ADMIN_EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; do
   read -rp "Correo del Administrador General (será su usuario): " ADMIN_EMAIL
@@ -77,12 +77,9 @@ done
 read -rp "Nombre de la empresa [Mi Empresa]: " ORG
 ORG=${ORG:-Mi Empresa}
 
-REMOTE=$(git config --get remote.origin.url || echo "")
-OWNER=$(echo "$REMOTE" | sed -E 's#.*github.com[:/]([^/]+)/.*#\1#')
-REPO=$(echo "$REMOTE" | sed -E 's#.*/([^/]+)(\.git)?$#\1#; s#\.git$##')
-APP_URL_DEF="https://${OWNER}.github.io/${REPO}/"
-read -rp "Dirección de la app [$APP_URL_DEF]: " APP_URL
-APP_URL=${APP_URL:-$APP_URL_DEF}
+# La app se publica en Firebase Hosting: dirección propia, separada de otras apps
+APP_URL="https://${PROJECT}.web.app/"
+echo "Dirección de la app: $APP_URL"
 
 [ -f functions/.env ] || cp functions/.env.example functions/.env
 node - "$REGION" "$APP_URL" "$ORG" "$ADMIN_EMAIL" <<'NODE'
@@ -106,7 +103,7 @@ NODE
 echo "Archivo functions/.env listo."
 
 # ---------------------------------------------------------------- 6
-paso "6/7 Subiendo reglas, índices y Cloud Functions (5-10 minutos)"
+paso "6/8 Subiendo reglas, índices y Cloud Functions (5-10 minutos)"
 (cd functions && npm install --no-audit --no-fund --loglevel=error)
 
 firebase deploy --only firestore:rules,firestore:indexes,storage --project "$PROJECT"
@@ -124,15 +121,58 @@ until desplegar_funciones; do
 done
 
 # ---------------------------------------------------------------- 7
-paso "7/7 Ajustando la app a la región $REGION"
+paso "7/8 Ajustando la app a la región $REGION"
 if grep -q "'$REGION'" src/config/region.js; then
   echo "La app ya usa $REGION."
 else
   sed -i -E "s#FUNCTIONS_REGION = '[^']*'#FUNCTIONS_REGION = '$REGION'#" src/config/region.js
   git add src/config/region.js
   git commit -qm "Región de Cloud Functions: $REGION"
-  git push -q && echo "Cambio subido: GitHub vuelve a publicar la app en ~3 minutos."
+  git push -q && echo "Región registrada en el repositorio."
 fi
+
+# ---------------------------------------------------------------- 8
+paso "8/8 Publicando la app en $APP_URL"
+VAPID=""
+[ -f .env.local ] && VAPID=$(grep -E '^VITE_FIREBASE_VAPID_KEY=' .env.local | cut -d= -f2- | tr -d '"' || true)
+if [ -z "$VAPID" ]; then
+  aviso "Pegue la clave push web (Firebase > Configuración del proyecto > Cloud Messaging >"
+  aviso "Certificados push web; es la misma del secret VITE_FIREBASE_VAPID_KEY) y pulse Enter."
+  read -rp "Clave push web: " VAPID
+  VAPID=$(echo "$VAPID" | tr -d '[:space:]')
+fi
+firebase apps:sdkconfig WEB --project "$PROJECT" --json > /tmp/sdkconfig.json
+node - "$VAPID" "$ORG" "$REGION" <<'NODE'
+const fs = require('fs');
+const [vapid, org, region] = process.argv.slice(2);
+const j = JSON.parse(fs.readFileSync('/tmp/sdkconfig.json', 'utf8'));
+let c = j.result && j.result.sdkConfig;
+if (!c && j.result && j.result.fileContents) {
+  const m = j.result.fileContents.match(/\{[\s\S]*\}/);
+  c = m ? JSON.parse(m[0]) : null;
+}
+if (!c || !c.apiKey) { console.error('No se pudo leer la configuración web de Firebase.'); process.exit(1); }
+const q = (v) => `"${String(v || '').replace(/"/g, '')}"`;
+const env = {
+  VITE_FIREBASE_API_KEY: c.apiKey,
+  VITE_FIREBASE_AUTH_DOMAIN: c.authDomain,
+  VITE_FIREBASE_PROJECT_ID: c.projectId,
+  VITE_FIREBASE_STORAGE_BUCKET: c.storageBucket,
+  VITE_FIREBASE_MESSAGING_SENDER_ID: c.messagingSenderId,
+  VITE_FIREBASE_APP_ID: c.appId,
+  VITE_FIREBASE_VAPID_KEY: vapid,
+  VITE_FUNCTIONS_REGION: region,
+  VITE_ORG_NAME: org,
+  VITE_BASE: '/',
+};
+fs.writeFileSync('.env.local', Object.entries(env).map(([k, v]) => `${k}=${q(v)}`).join('\n') + '\n');
+console.log('Configuración web lista (.env.local).');
+NODE
+npm install --no-audit --no-fund --loglevel=error
+npm run build
+# Proyectos nuevos: crea el sitio por defecto (<proyecto>.web.app) si aún no existe
+firebase hosting:sites:create "$PROJECT" --project "$PROJECT" >/dev/null 2>&1 || true
+firebase deploy --only hosting --project "$PROJECT"
 
 echo -e "\n${V}=============================================="
 echo "  ✔ Backend configurado"
@@ -144,6 +184,7 @@ cat <<FIN
        Correo:     $ADMIN_EMAIL
        Contraseña: la que usted elija
   2. Abra $APP_URL e inicie sesión.
-     La app le asigna automáticamente el rol de Administrador General.
+     (Si es la primera vez, la app le asigna el rol de Administrador General.)
+  3. Instálela: Chrome ⋮ > Agregar a la pantalla principal > Instalar.
 
 FIN

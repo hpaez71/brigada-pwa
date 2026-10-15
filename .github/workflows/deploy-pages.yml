@@ -1,11 +1,13 @@
-name: Frontend · Build y GitHub Pages
+name: Frontend · Redirección de GitHub Pages
+
+# La app se publica en Firebase Hosting (https://<proyecto>.web.app) con
+# scripts/configurar.sh. Esta dirección antigua de GitHub Pages solo redirige
+# a la nueva y retira la copia guardada en los celulares (service worker).
 
 on:
   push:
     branches: [main]
-    paths-ignore: ['docs/**', '**.md', 'functions/**']
-  pull_request:
-    branches: [main]
+    paths: ['.github/workflows/deploy-pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -14,56 +16,61 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-${{ github.ref }}
+  group: pages
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Compilar PWA
+      - name: Generar páginas de redirección
         env:
-          # Repositorio de proyecto → /<repo>/ ; repo <usuario>.github.io o dominio propio → defina la variable VITE_BASE=/
-          VITE_BASE: ${{ vars.VITE_BASE || format('/{0}/', github.event.repository.name) }}
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
-          VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
-          VITE_FUNCTIONS_REGION: ${{ vars.VITE_FUNCTIONS_REGION }}  # vacío = usa src/config/region.js
-          VITE_ORG_NAME: ${{ vars.VITE_ORG_NAME }}
-          VITE_EMERGENCY_PHONE: ${{ vars.VITE_EMERGENCY_PHONE || '123' }}
-          VITE_COORDINATOR_PHONE: ${{ vars.VITE_COORDINATOR_PHONE }}
-        run: npm run build
-
-      - name: Ajustes para GitHub Pages
+          PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
         run: |
-          touch dist/.nojekyll
-          cp dist/index.html dist/404.html
+          DEST="https://${PROJECT_ID:-brigada-pws}.web.app/"
+          mkdir -p site
+          cat > site/index.html <<EOF
+          <!doctype html>
+          <html lang="es"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Brigadas de Emergencia – nueva dirección</title>
+          <meta http-equiv="refresh" content="2; url=${DEST}">
+          <style>body{font-family:system-ui,sans-serif;max-width:520px;margin:15vh auto;padding:20px;text-align:center;color:#222}
+          a{display:inline-block;margin-top:16px;padding:14px 22px;background:#B71C1C;color:#fff;border-radius:10px;text-decoration:none;font-weight:700}</style>
+          </head><body>
+          <h1 style="color:#B71C1C">La app cambió de dirección</h1>
+          <p>Brigadas de Emergencia ahora está en<br><strong>${DEST}</strong></p>
+          <p>Si instaló la versión anterior, desinstálela e instale la nueva.</p>
+          <a href="${DEST}">Ir a la app</a>
+          <script>
+            if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+            if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
+            setTimeout(function () { location.replace('${DEST}' + location.hash); }, 1500);
+          </script>
+          </body></html>
+          EOF
+          cp site/index.html site/404.html
+          # Service worker "de retiro": reemplaza al anterior, borra su caché y se desinstala
+          cat > site/sw.js <<EOF
+          self.addEventListener('install', () => self.skipWaiting());
+          self.addEventListener('activate', (e) => {
+            e.waitUntil((async () => {
+              for (const k of await caches.keys()) await caches.delete(k);
+              await self.registration.unregister();
+              const cs = await self.clients.matchAll({ type: 'window' });
+              cs.forEach((c) => c.navigate('${DEST}'));
+            })());
+          });
+          EOF
+          touch site/.nojekyll
+          ls -la site
 
       - uses: actions/configure-pages@v5
-        if: github.event_name != 'pull_request'
-
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request'
         with:
-          path: dist
+          path: site
 
   deploy:
-    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

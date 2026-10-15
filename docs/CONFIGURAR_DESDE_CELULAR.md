@@ -21,14 +21,19 @@ para subir las reglas de seguridad y las Cloud Functions a Firebase.
    - **Región:** Enter.
    - **Correo del administrador:** su correo.
    - **Nombre de la empresa.**
-   - **Dirección de la app:** Enter.
+   - **Clave push web:** la de Firebase → Configuración del proyecto → Cloud Messaging →
+     Certificados push web (solo la primera vez).
 4. Espere 5–10 minutos hasta ver **✔ Backend configurado**.
 
 ## Después
 
 1. Firebase → **Authentication → Usuarios → Agregar usuario** con el mismo correo
    y una contraseña.
-2. Abra la app e inicie sesión: queda como **Administrador General**.
+2. Abra **https://brigada-pws.web.app** e inicie sesión: queda como **Administrador General**.
+3. Instálela: Chrome ⋮ → **Agregar a la pantalla principal → Instalar**.
+
+> La app se publica en **Firebase Hosting** (dirección propia). La dirección antigua de
+> GitHub Pages solo redirige a la nueva.
 
 ## Al terminar
 

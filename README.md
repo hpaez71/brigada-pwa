@@ -33,6 +33,8 @@ npm run dev
 
 Despliegue completo (Firebase + GitHub Pages + CI/CD): **[docs/DESPLIEGUE.md](docs/DESPLIEGUE.md)**.
 
+App publicada en **Firebase Hosting** (`https://<proyecto>.web.app`) con `bash scripts/configurar.sh`.
+
 Sin computador: **[docs/CONFIGURAR_DESDE_CELULAR.md](docs/CONFIGURAR_DESDE_CELULAR.md)** (GitHub Codespaces + `bash scripts/configurar.sh`).
 
 ## Documentación
