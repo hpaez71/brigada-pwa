@@ -295,6 +295,11 @@ exports.onUserWritten = onDocumentWritten('users/{uid}', async (event) => {
     await dir.delete();
     return;
   }
+  if (after.estado === 'pendiente') {
+    // Las solicitudes sin aprobar no aparecen en el directorio interno
+    await dir.delete().catch(() => {});
+    return;
+  }
   await dir.set({
     nombre: after.nombre || '',
     cargo: after.cargo || '',
@@ -464,6 +469,94 @@ exports.reclamarAdmin = onCall({ enforceAppCheck }, async (req) => {
     { merge: true },
   );
   await audit('usuario.admin_inicial', uid, { email }, { col: 'users', id: uid });
+  return { ok: true };
+});
+
+/**
+ * Registro propio: quien crea su cuenta desde la app queda en estado
+ * "pendiente" y sin rol (no puede ver ni modificar nada) hasta que un
+ * coordinador o el administrador la apruebe.
+ */
+exports.registrarSolicitud = onCall({ enforceAppCheck }, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Inicie sesión.');
+  if (req.auth.token.role) return { ok: true, yaActivo: true };
+  const uid = req.auth.uid;
+  const ref = db.doc(`users/${uid}`);
+  if ((await ref.get()).exists) return { ok: true, yaRegistrado: true };
+
+  const d = req.data || {};
+  const nombre = String(d.nombre || '').trim().slice(0, 120);
+  if (!nombre) throw new HttpsError('invalid-argument', 'El nombre es obligatorio.');
+  const email = String(req.auth.token.email || '').toLowerCase();
+  await ref.set({
+    nombre,
+    tipoDocumento: String(d.tipoDocumento || 'CC').slice(0, 5),
+    documento: String(d.documento || '').trim().slice(0, 30),
+    telefono: String(d.telefono || '').trim().slice(0, 30),
+    cargo: String(d.cargo || '').trim().slice(0, 80),
+    area: String(d.area || '').trim().slice(0, 80),
+    email,
+    estado: 'pendiente',
+    autoRegistro: true,
+    disponible: false,
+    brigadas: [],
+    certificaciones: [],
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  if (nombre) await admin.auth().updateUser(uid, { displayName: nombre }).catch(() => {});
+  await audit('usuario.solicitud', uid, { email }, { col: 'users', id: uid });
+  await ch.pushTopic({
+    condition: "'rol_coordinador' in topics || 'rol_admin' in topics",
+    title: '👤 Nueva solicitud de registro',
+    body: `${nombre} (${email}) espera aprobación`,
+    link: `${APP_URL()}#/brigadistas`,
+    tag: 'solicitudes',
+    data: { tipo: 'solicitud', path: '/brigadistas' },
+  });
+  return { ok: true };
+});
+
+/** Aprueba (asigna rol) o rechaza una solicitud de registro. */
+exports.aprobarUsuario = onCall({ enforceAppCheck }, async (req) => {
+  const callerRole = req.auth?.token?.role;
+  if (!['admin', 'coordinador'].includes(callerRole)) {
+    throw new HttpsError('permission-denied', 'Requiere rol coordinador o administrador.');
+  }
+  const { uid, role, aprobar = true } = req.data || {};
+  if (!uid) throw new HttpsError('invalid-argument', 'Falta el usuario.');
+  const ref = db.doc(`users/${uid}`);
+  const snap = await ref.get();
+  if (!snap.exists || snap.get('estado') !== 'pendiente') {
+    throw new HttpsError('failed-precondition', 'La solicitud ya fue procesada.');
+  }
+
+  if (aprobar === false) {
+    await ref.update({ estado: 'inactivo', rechazadoPor: req.auth.uid, updatedAt: FieldValue.serverTimestamp() });
+    await audit('usuario.rechazar', req.auth.uid, { uid }, { col: 'users', id: uid });
+    return { ok: true, rechazado: true };
+  }
+
+  if (!ROLES.includes(role)) throw new HttpsError('invalid-argument', 'Rol inválido.');
+  if (callerRole !== 'admin' && RANK[role] > RANK.jefe_brigada) {
+    throw new HttpsError('permission-denied', 'Solo el administrador puede asignar roles de coordinador o administrador.');
+  }
+  await admin.auth().setCustomUserClaims(uid, { role });
+  await ref.update({
+    role,
+    estado: 'activo',
+    disponible: true,
+    aprobadoPor: req.auth.uid,
+    claimsUpdatedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await audit('usuario.aprobar', req.auth.uid, { uid, role }, { col: 'users', id: uid });
+  await ch.pushUsers([uid], {
+    title: '✅ Cuenta aprobada',
+    body: 'Ya puede ingresar a la plataforma de brigadas.',
+    link: APP_URL(),
+    tag: 'aprobacion',
+  });
   return { ok: true };
 });
 

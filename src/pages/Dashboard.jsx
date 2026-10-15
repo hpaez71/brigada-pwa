@@ -60,6 +60,10 @@ function CoordinatorDashboard() {
   const { activas, apoyos } = useOps();
   const { sedesMap, puntos } = useSedes();
   const counts = useCounts();
+  const { data: pendientes } = useQuery(
+    () => query(collection(db, 'users'), where('estado', '==', 'pendiente'), limit(50)),
+    [],
+  );
   const [since] = useState(() => Timestamp.fromMillis(Date.now() - 60 * 60_000));
   const [openAct, setOpenAct] = useState(false);
 
@@ -117,6 +121,12 @@ function CoordinatorDashboard() {
         }
       />
       <ActivationDialog open={openAct} onClose={() => setOpenAct(false)} />
+      {pendientes.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}
+          action={<Button color="inherit" size="small" component={RouterLink} to="/brigadistas">Revisar</Button>}>
+          {pendientes.length === 1 ? '1 solicitud de registro espera' : `${pendientes.length} solicitudes de registro esperan`} aprobación.
+        </Alert>
+      )}
 
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)', lg: 'repeat(6, 1fr)' }, mb: 2 }}>
         <StatCard label="Total brigadistas" value={counts.total} icon={<GroupsIcon />} color="#263238" />

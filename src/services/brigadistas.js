@@ -43,3 +43,8 @@ export async function subirFoto(uid, file) {
   await updateDoc(doc(db, 'users', uid), { fotoUrl: url, updatedAt: serverTimestamp() });
   return url;
 }
+
+/** Aprueba (con rol) o rechaza una solicitud de registro propio. */
+export async function aprobarUsuario(uid, role, aprobar = true) {
+  await callable('aprobarUsuario')({ uid, role, aprobar });
+}

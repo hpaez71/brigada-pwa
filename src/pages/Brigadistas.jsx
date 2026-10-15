@@ -15,8 +15,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useQuery } from '../hooks/useFirestore';
 import { useSedes } from '../hooks/useSedes';
 import { BRIGADA_TIPOS, ROLE_LABELS, ROLE_RANK } from '../config/constants';
-import { actualizarBrigadista, asignarRol, crearBrigadista, subirFoto } from '../services/brigadistas';
-import { daysUntil, fmtDate, toInputDate } from '../utils/format';
+import { actualizarBrigadista, aprobarUsuario, asignarRol, crearBrigadista, subirFoto } from '../services/brigadistas';
+import { daysUntil, fmtDate, fmtDateTime, toInputDate } from '../utils/format';
 import { exportarExcel, filaBrigadista, COLS_BRIGADISTA } from '../services/reports';
 import { BrigadaChips } from '../components/Chips';
 import PageHeader from '../components/PageHeader';
@@ -180,6 +180,66 @@ function BrigadistaForm({ open, initial, onClose }) {
   );
 }
 
+/** Solicitudes de registro propio esperando aprobación. */
+function SolicitudesPendientes() {
+  const { role, hasRole } = useAuth();
+  const puedeAprobar = hasRole('coordinador');
+  const [rolSel, setRolSel] = useState({});
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState('');
+  const { data } = useQuery(() => query(collection(db, 'users'), where('estado', '==', 'pendiente'), limit(200)), []);
+  const roles = Object.keys(ROLE_LABELS).filter((r) => role === 'admin' || ROLE_RANK[r] <= ROLE_RANK.jefe_brigada);
+
+  if (!data.length) return null;
+
+  const procesar = async (u, aprobar) => {
+    if (!aprobar && !window.confirm(`¿Rechazar la solicitud de ${u.nombre}? La cuenta quedará bloqueada.`)) return;
+    setBusy(u.id);
+    setError('');
+    try {
+      await aprobarUsuario(u.id, rolSel[u.id] || 'brigadista', aprobar);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card sx={{ mb: 2, borderColor: 'warning.main', borderWidth: 2 }}>
+      <Box sx={{ p: 2 }}>
+        <Typography variant="h6" sx={{ mb: 1 }}>Solicitudes de registro pendientes ({data.length})</Typography>
+        {!puedeAprobar && <Alert severity="info" sx={{ mb: 1 }}>Solo un coordinador o el administrador puede aprobarlas.</Alert>}
+        {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
+        {data.map((u) => (
+          <Stack key={u.id} direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}
+            sx={{ py: 1.5, borderTop: 1, borderColor: 'divider' }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography fontWeight={600}>{u.nombre}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {u.tipoDocumento} {u.documento} · {u.telefono || 'sin teléfono'} · {u.email}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {[u.cargo, u.area].filter(Boolean).join(' · ')}{u.createdAt ? ` · solicitado ${fmtDateTime(u.createdAt)}` : ''}
+              </Typography>
+            </Box>
+            {puedeAprobar && (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <TextField select label="Rol" value={rolSel[u.id] || 'brigadista'} sx={{ minWidth: 170 }}
+                  onChange={(e) => setRolSel((s) => ({ ...s, [u.id]: e.target.value }))}>
+                  {roles.map((r) => <MenuItem key={r} value={r}>{ROLE_LABELS[r]}</MenuItem>)}
+                </TextField>
+                <Button variant="contained" color="success" disabled={busy === u.id} onClick={() => procesar(u, true)}>Aprobar</Button>
+                <Button color="error" disabled={busy === u.id} onClick={() => procesar(u, false)}>Rechazar</Button>
+              </Stack>
+            )}
+          </Stack>
+        ))}
+      </Box>
+    </Card>
+  );
+}
+
 export default function Brigadistas() {
   const { hasRole } = useAuth();
   const { sedes, sedesMap } = useSedes();
@@ -234,8 +294,10 @@ export default function Brigadistas() {
           <MenuItem value="">Todos</MenuItem>
           <MenuItem value="activo">Activo</MenuItem>
           <MenuItem value="inactivo">Inactivo</MenuItem>
+          <MenuItem value="pendiente">Pendiente de aprobación</MenuItem>
         </TextField>
       </Stack>
+      <SolicitudesPendientes />
       <TableContainer component={Card}>
         <Table size="small">
           <TableHead>
@@ -276,10 +338,10 @@ export default function Brigadistas() {
                       </Tooltip>
                     )}
                   </TableCell>
-                  <TableCell><Chip size="small" label={u.estado} color={u.estado === 'activo' ? 'success' : 'default'} /></TableCell>
+                  <TableCell><Chip size="small" label={u.estado} color={u.estado === 'activo' ? 'success' : u.estado === 'pendiente' ? 'warning' : 'default'} /></TableCell>
                   {canEdit && (
                     <TableCell>
-                      <IconButton size="small" onClick={() => setEditing({ ...VACIO, ...u })}><EditIcon /></IconButton>
+                      {u.estado !== 'pendiente' && <IconButton size="small" onClick={() => setEditing({ ...VACIO, ...u })}><EditIcon /></IconButton>}
                     </TableCell>
                   )}
                 </TableRow>
