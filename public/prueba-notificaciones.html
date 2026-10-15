@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de notificaciones</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #f4f4f2; color: #222; }
+  h1 { font-size: 22px; color: #B71C1C; margin: 0 0 12px; }
+  button { display: block; width: 100%; padding: 16px; margin: 12px 0; font-size: 17px; font-weight: 700;
+           border: 0; border-radius: 10px; background: #B71C1C; color: #fff; }
+  button.sec { background: #263238; }
+  pre { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 12px; white-space: pre-wrap;
+        word-break: break-word; font-size: 14px; line-height: 1.5; }
+  p { font-size: 15px; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <h1>Prueba de notificaciones</h1>
+  <p>Esta página no usa Firebase ni la app: solo le pregunta al navegador. Toque el botón rojo y, si aparece una ventana, elija <b>Permitir</b>.</p>
+  <button id="pedir">1. Pedir permiso</button>
+  <button id="mostrar" class="sec">2. Mostrar notificación de prueba</button>
+  <pre id="out">Cargando…</pre>
+<script>
+  const out = document.getElementById('out');
+  const log = [];
+  const add = (t) => { log.push(t); render(); };
+  async function estado() {
+    const l = [];
+    l.push('Contexto seguro (HTTPS): ' + (window.isSecureContext ? 'sí' : 'NO'));
+    l.push('API Notification: ' + ('Notification' in window ? 'sí' : 'NO'));
+    l.push('Service Worker: ' + ('serviceWorker' in navigator ? 'sí' : 'NO'));
+    l.push('PushManager: ' + ('PushManager' in window ? 'sí' : 'NO'));
+    if ('Notification' in window) l.push('Notification.permission: ' + Notification.permission);
+    try {
+      const p = await navigator.permissions.query({ name: 'notifications' });
+      l.push('permissions.query: ' + p.state);
+    } catch (e) { l.push('permissions.query: no disponible'); }
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      l.push('SW registrados: ' + regs.length + (regs[0] ? ' (' + regs[0].scope + ')' : ''));
+    } catch (e) { l.push('SW registrados: error ' + e.message); }
+    l.push('Navegador: ' + navigator.userAgent);
+    return l.join('\n');
+  }
+  async function render() { out.textContent = (await estado()) + (log.length ? '\n\n— Resultados —\n' + log.join('\n') : ''); }
+  document.getElementById('pedir').onclick = async () => {
+    try {
+      const r = await Notification.requestPermission();
+      add(new Date().toLocaleTimeString() + ' requestPermission → ' + r);
+    } catch (e) { add('Error: ' + e.message); }
+  };
+  document.getElementById('mostrar').onclick = async () => {
+    try {
+      const reg = (await navigator.serviceWorker.getRegistrations())[0];
+      if (!reg) return add('No hay service worker: abra primero la app una vez.');
+      await reg.showNotification('Prueba de Brigadas', { body: 'Si ve esto, las notificaciones funcionan.' });
+      add('Notificación enviada');
+    } catch (e) { add('Error al mostrar: ' + e.message); }
+  };
+  render();
+</script>
+</body>
+</html>
