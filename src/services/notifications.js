@@ -23,8 +23,26 @@ export async function enablePush(user, profile) {
         : 'Este navegador no soporta notificaciones push.',
     );
   }
+  if (Notification.permission === 'denied') {
+    throw new Error(
+      'Chrome tiene bloqueadas las notificaciones de este sitio. Toque el ícono a la izquierda de la dirección → ' +
+        'Permisos → Notificaciones → Permitir, y vuelva a intentarlo.',
+    );
+  }
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') throw new Error('Permiso de notificaciones denegado.');
+  if (permission === 'denied') {
+    throw new Error(
+      'Permiso denegado. Revise: Chrome → Configuración → Configuración de sitios → Notificaciones ' +
+        '(debe estar activado), y Ajustes de Android → Apps → Chrome → Notificaciones.',
+    );
+  }
+  if (permission !== 'granted') {
+    throw new Error(
+      'No se concedió el permiso (la ventana no apareció o se cerró). Busque una campana 🔔 en la barra de ' +
+        'direcciones y toque Permitir; o en Chrome → Configuración → Configuración de sitios → Notificaciones, ' +
+        'desactive "Usar mensajes más discretos" y vuelva a intentarlo.',
+    );
+  }
 
   const messaging = await messagingPromise;
   if (!messaging) throw new Error('Firebase Messaging no está disponible en este navegador.');
