@@ -43,7 +43,7 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
           VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
-          VITE_FUNCTIONS_REGION: ${{ vars.VITE_FUNCTIONS_REGION || 'us-central1' }}
+          VITE_FUNCTIONS_REGION: ${{ vars.VITE_FUNCTIONS_REGION }}  # vacío = usa src/config/region.js
           VITE_ORG_NAME: ${{ vars.VITE_ORG_NAME }}
           VITE_EMERGENCY_PHONE: ${{ vars.VITE_EMERGENCY_PHONE || '123' }}
           VITE_COORDINATOR_PHONE: ${{ vars.VITE_COORDINATOR_PHONE }}

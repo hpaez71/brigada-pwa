@@ -420,6 +420,46 @@ exports.asignarRol = onCall({ enforceAppCheck }, async (req) => {
   return { ok: true };
 });
 
+/**
+ * Primer Administrador General sin computador:
+ * el usuario se crea en Firebase > Authentication con el correo definido en
+ * BOOTSTRAP_ADMIN_EMAIL; al iniciar sesión la app llama a esta función.
+ * Solo funciona mientras NO exista ningún administrador.
+ */
+exports.reclamarAdmin = onCall({ enforceAppCheck }, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Inicie sesión.');
+  const email = String(req.auth.token.email || '').toLowerCase();
+  const permitido = String(process.env.BOOTSTRAP_ADMIN_EMAIL || '').trim().toLowerCase();
+  if (!permitido || email !== permitido) {
+    throw new HttpsError('permission-denied', 'Esta cuenta no es la del administrador inicial.');
+  }
+  if (req.auth.token.role === 'admin') return { ok: true, yaEraAdmin: true };
+
+  const existentes = await db.collection('users').where('role', '==', 'admin').limit(1).get();
+  if (!existentes.empty) throw new HttpsError('failed-precondition', 'Ya existe un Administrador General.');
+
+  const uid = req.auth.uid;
+  const user = await admin.auth().getUser(uid);
+  await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
+  await db.doc(`users/${uid}`).set(
+    {
+      nombre: user.displayName || email.split('@')[0],
+      email,
+      role: 'admin',
+      estado: 'activo',
+      disponible: true,
+      brigadas: [],
+      certificaciones: [],
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      claimsUpdatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+  await audit('usuario.admin_inicial', uid, { email }, { col: 'users', id: uid });
+  return { ok: true };
+});
+
 /* =================================================================== */
 /*  9. Escalamiento: sin respuesta → SMS + WhatsApp                     */
 /* =================================================================== */

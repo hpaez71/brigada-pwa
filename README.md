@@ -33,6 +33,8 @@ npm run dev
 
 Despliegue completo (Firebase + GitHub Pages + CI/CD): **[docs/DESPLIEGUE.md](docs/DESPLIEGUE.md)**.
 
+Sin computador: **[docs/CONFIGURAR_DESDE_CELULAR.md](docs/CONFIGURAR_DESDE_CELULAR.md)** (GitHub Codespaces + `bash scripts/configurar.sh`).
+
 ## Documentación
 
 - [Arquitectura, diagramas de componentes y flujos](docs/ARQUITECTURA.md)

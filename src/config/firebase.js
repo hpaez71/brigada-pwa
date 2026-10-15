@@ -12,6 +12,7 @@ import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/
 import { getMessaging, isSupported } from 'firebase/messaging';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { firebaseConfig } from './firebaseConfig';
+import { FUNCTIONS_REGION } from './region';
 
 export const app = initializeApp(firebaseConfig);
 
@@ -36,7 +37,7 @@ try {
 export const db = initializeFirestore(app, { localCache, ignoreUndefinedProperties: true });
 
 export const storage = getStorage(app);
-export const functions = getFunctions(app, import.meta.env.VITE_FUNCTIONS_REGION || 'us-central1');
+export const functions = getFunctions(app, import.meta.env.VITE_FUNCTIONS_REGION || FUNCTIONS_REGION);
 export const callable = (name) => httpsCallable(functions, name);
 
 export const messagingPromise = isSupported()
