@@ -171,7 +171,7 @@ NODE
 npm install --no-audit --no-fund --loglevel=error
 npm run build
 # Proyectos nuevos: crea el sitio por defecto (<proyecto>.web.app) si aún no existe
-firebase hosting:sites:create "$PROJECT" --project "$PROJECT" >/dev/null 2>&1 || true
+firebase hosting:sites:create "$PROJECT" --project "$PROJECT" --non-interactive </dev/null >/dev/null 2>&1 || true
 firebase deploy --only hosting --project "$PROJECT"
 
 echo -e "\n${V}=============================================="
