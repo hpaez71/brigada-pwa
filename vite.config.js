@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
         },
         includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
         manifest: {
+          id: base,
           name: 'Brigadas de Emergencia',
           short_name: 'Brigadas',
           description: 'Gestión y activación de brigadas de emergencia empresariales',
@@ -42,8 +43,8 @@ export default defineConfig(({ mode }) => {
             { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
           shortcuts: [
-            { name: 'Solicitar apoyo', url: `${base}#/?panico=1`, icons: [{ src: 'icons/icon-192.png', sizes: '192x192' }] },
-            { name: 'Emergencias', url: `${base}#/emergencias`, icons: [{ src: 'icons/icon-192.png', sizes: '192x192' }] },
+            { name: 'Solicitar apoyo', url: `${base}#/?panico=1`, icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }] },
+            { name: 'Emergencias', url: `${base}#/emergencias`, icons: [{ src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' }] },
           ],
         },
         devOptions: { enabled: false, type: 'module' },
