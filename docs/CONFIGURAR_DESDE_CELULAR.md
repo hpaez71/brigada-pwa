@@ -33,6 +33,4 @@ para subir las reglas de seguridad y las Cloud Functions a Firebase.
 ## Al terminar
 
 Detenga el Codespace para no consumir horas gratuitas:
-<https://github.com/codespaces> → ⋯ → **Stop codespace** (o **Delete**)$
-
-bash scripts/configurar.sh
+<https://github.com/codespaces> → ⋯ → **Stop codespace** (o **Delete**).
