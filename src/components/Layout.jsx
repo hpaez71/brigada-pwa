@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar, Avatar, Box, Chip, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon,
@@ -28,6 +28,8 @@ import { OpsProvider, useOps } from '../contexts/OpsContext';
 import { ROLE_LABELS, EMERGENCIA_TIPOS, labelOf } from '../config/constants';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { onQueueChange, pendingCount, processQueue } from '../services/offlineQueue';
+import ErrorBoundary from './ErrorBoundary';
+import Loading from './Loading';
 import { onForegroundMessage } from '../services/notifications';
 import { unlockAudio } from '../utils/alarm';
 import EmergencyWatcher from './EmergencyWatcher';
@@ -207,7 +209,11 @@ function Shell() {
         <Toolbar sx={{ mt: 'env(safe-area-inset-top)' }} />
         <StatusBar />
         <Box sx={{ p: { xs: 2, md: 3 }, pb: 12, maxWidth: 1400, mx: 'auto' }}>
-          <Outlet />
+          <ErrorBoundary resetKey={location.pathname}>
+            <Suspense fallback={<Loading />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </Box>
       </Box>
 

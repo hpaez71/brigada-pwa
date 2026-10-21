@@ -16,6 +16,18 @@ import { useDocument, useQuery } from '../hooks/useFirestore';
 import { abrirDirecto, crearCanal, enviarMensaje } from '../services/chat';
 import { fmtTime, fmtDate, toDate } from '../utils/format';
 
+/** Texto seguro para mostrar: evita fallos si un campo llega con un tipo inesperado. */
+const txt = (v) => (v == null ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
+
+function errorText(err) {
+  const code = err?.code || '';
+  if (code === 'permission-denied') return 'No tiene permiso para ver este canal o su sesión debe actualizarse. Cierre sesión y vuelva a ingresar.';
+  if (code === 'not-found') return 'Este canal no existe o fue eliminado.';
+  if (code === 'unavailable') return 'Sin conexión: se mostrarán los mensajes guardados y se sincronizará al volver la red.';
+  if (code === 'failed-precondition') return 'Falta un índice en la base de datos. Avise al administrador.';
+  return err?.message || 'Error al cargar el chat.';
+}
+
 function Conversacion({ canalId, onBack }) {
   const { user, profile } = useAuth();
   const [texto, setTexto] = useState('');
@@ -23,8 +35,8 @@ function Conversacion({ canalId, onBack }) {
   const [esEvidencia, setEsEvidencia] = useState(false);
   const [aviso, setAviso] = useState('');
   const bottom = useRef(null);
-  const { data: canal } = useDocument(() => doc(db, 'canales', canalId), [canalId]);
-  const { data: desc } = useQuery(
+  const { data: canal, loading: cargandoCanal, error: errCanal } = useDocument(() => doc(db, 'canales', canalId), [canalId]);
+  const { data: desc, error: errMsgs } = useQuery(
     () => query(collection(db, 'canales', canalId, 'mensajes'), orderBy('createdAt', 'desc'), limit(150)),
     [canalId],
   );
@@ -35,12 +47,18 @@ function Conversacion({ canalId, onBack }) {
   const send = async (e) => {
     e?.preventDefault();
     if (!texto.trim() && !file) return;
-    const r = await enviarMensaje(canalId, { texto, file, esEvidencia }, user, profile);
-    if (r.queued) setAviso('Adjunto en cola: se enviará al recuperar conexión.');
-    setTexto('');
-    setFile(null);
-    setEsEvidencia(false);
+    try {
+      const r = await enviarMensaje(canalId, { texto, file, esEvidencia }, user, profile);
+      if (r.queued) setAviso('Adjunto en cola: se enviará al recuperar conexión.');
+      setTexto('');
+      setFile(null);
+      setEsEvidencia(false);
+    } catch (err) {
+      setAviso(`No se pudo enviar el mensaje: ${errorText(err)}`);
+    }
   };
+
+  const errVista = errCanal || errMsgs || (!cargandoCanal && !canal ? { code: 'not-found' } : null);
 
   let lastDay = '';
   return (
@@ -48,11 +66,15 @@ function Conversacion({ canalId, onBack }) {
       <Stack direction="row" alignItems="center" spacing={1} sx={{ p: 1.5, borderBottom: 1, borderColor: 'divider' }}>
         {onBack && <IconButton onClick={onBack}><ArrowBackIcon /></IconButton>}
         <Typography variant="subtitle1" fontWeight={700} noWrap>
-          {canal?.tipo === 'directo' ? Object.entries(canal.nombres || {}).find(([k]) => k !== user.uid)?.[1] : canal?.nombre}
+          {txt(canal?.tipo === 'directo' ? Object.entries(canal.nombres || {}).find(([k]) => k !== user.uid)?.[1] : canal?.nombre) || 'Conversación'}
         </Typography>
         {canal?.tipo === 'emergencia' && <Chip size="small" color="error" label="Emergencia" />}
       </Stack>
       <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+        {errVista && <Alert severity="warning" sx={{ mb: 2 }}>{errorText(errVista)}</Alert>}
+        {!errVista && msgs.length === 0 && (
+          <Typography color="text.secondary" textAlign="center" sx={{ mt: 4 }}>Aún no hay mensajes. Escriba el primero.</Typography>
+        )}
         {msgs.map((m) => {
           const mine = m.autor?.uid === user.uid;
           const day = fmtDate(m.createdAt || m.clientAt);
@@ -64,7 +86,7 @@ function Conversacion({ canalId, onBack }) {
               <Stack direction="row" spacing={1} justifyContent={mine ? 'flex-end' : 'flex-start'} sx={{ mb: 1 }}>
                 {!mine && <Avatar src={m.autor?.fotoUrl} sx={{ width: 28, height: 28 }}>{m.autor?.nombre?.[0]}</Avatar>}
                 <Box sx={{ maxWidth: '78%', px: 1.5, py: 1, borderRadius: 2, bgcolor: mine ? 'primary.main' : 'action.hover', color: mine ? '#fff' : 'text.primary' }}>
-                  {!mine && <Typography variant="caption" fontWeight={700} display="block">{m.autor?.nombre}</Typography>}
+                  {!mine && <Typography variant="caption" fontWeight={700} display="block">{txt(m.autor?.nombre)}</Typography>}
                   {m.adjunto?.contentType?.startsWith('image/') && (
                     <a href={m.adjunto.url} target="_blank" rel="noopener noreferrer">
                       <img src={m.adjunto.url} alt={m.adjunto.nombre} style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 8, display: 'block' }} loading="lazy" />
@@ -73,7 +95,7 @@ function Conversacion({ canalId, onBack }) {
                   {m.adjunto && !m.adjunto.contentType?.startsWith('image/') && (
                     <Button size="small" href={m.adjunto.url} target="_blank" sx={{ color: 'inherit' }} startIcon={<AttachFileIcon />}>{m.adjunto.nombre}</Button>
                   )}
-                  {m.texto && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.texto}</Typography>}
+                  {m.texto && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{txt(m.texto)}</Typography>}
                   <Typography variant="caption" sx={{ opacity: 0.7 }}>
                     {m.esEvidencia && '📎 evidencia · '}
                     {m.createdAt ? fmtTime(m.createdAt) : 'enviando…'}
@@ -116,13 +138,14 @@ export default function Chat() {
   const [nuevo, setNuevo] = useState(false);
   const [destino, setDestino] = useState(null);
   const [nombreGrupo, setNombreGrupo] = useState('');
+  const [errNuevo, setErrNuevo] = useState('');
 
-  const { data: publicos } = useQuery(() => query(collection(db, 'canales'), where('publico', '==', true), limit(100)), []);
-  const { data: directos } = useQuery(() => query(collection(db, 'canales'), where('miembros', 'array-contains', user.uid), limit(100)), [user.uid]);
+  const { data: publicos, error: errPub } = useQuery(() => query(collection(db, 'canales'), where('publico', '==', true), limit(100)), []);
+  const { data: directos, error: errDir } = useQuery(() => query(collection(db, 'canales'), where('miembros', 'array-contains', user.uid), limit(100)), [user.uid]);
   const { data: directorio } = useQuery(() => (nuevo ? query(collection(db, 'directorio'), limit(1000)) : null), [nuevo]);
 
   const canales = useMemo(
-    () => [...publicos, ...directos].sort((a, b) => (toDate(b.ultimoMensajeAt || b.createdAt) || 0) - (toDate(a.ultimoMensajeAt || a.createdAt) || 0)),
+    () => [...new Map([...publicos, ...directos].map((c) => [c.id, c])).values()].sort((a, b) => (toDate(b.ultimoMensajeAt || b.createdAt) || 0) - (toDate(a.ultimoMensajeAt || a.createdAt) || 0)),
     [publicos, directos],
   );
   const open = (id) => setParams(id ? { canal: id } : {});
@@ -133,18 +156,19 @@ export default function Chat() {
         <Typography variant="subtitle1" fontWeight={700} sx={{ flex: 1 }}>Canales</Typography>
         <IconButton onClick={() => setNuevo(true)} aria-label="Nuevo"><AddCommentIcon /></IconButton>
       </Stack>
+      {(errPub || errDir) && <Alert severity="warning" sx={{ m: 1 }}>{errorText(errPub || errDir)}</Alert>}
       <List sx={{ flex: 1, overflowY: 'auto' }}>
         {canales.map((c) => (
           <ListItemButton key={c.id} selected={c.id === canalId} onClick={() => open(c.id)}>
             <ListItemText
-              primary={c.tipo === 'directo' ? Object.entries(c.nombres || {}).find(([k]) => k !== user.uid)?.[1] : c.nombre}
-              secondary={c.ultimoMensaje || { general: 'Canal general', sede: 'Sede', emergencia: 'Emergencia', directo: 'Mensaje directo', grupo: 'Grupo' }[c.tipo]}
+              primary={txt(c.tipo === 'directo' ? Object.entries(c.nombres || {}).find(([k]) => k !== user.uid)?.[1] : c.nombre) || 'Canal'}
+              secondary={txt(c.ultimoMensaje) || { general: 'Canal general', sede: 'Sede', emergencia: 'Emergencia', directo: 'Mensaje directo', grupo: 'Grupo' }[c.tipo]}
               secondaryTypographyProps={{ noWrap: true }}
             />
             {c.tipo === 'emergencia' && c.activo !== false && <Chip size="small" color="error" label="●" />}
           </ListItemButton>
         ))}
-        {canales.length === 0 && <Typography sx={{ p: 2 }} color="text.secondary">Sin canales.</Typography>}
+        {canales.length === 0 && !errPub && !errDir && <Typography sx={{ p: 2 }} color="text.secondary">Sin canales.</Typography>}
       </List>
     </Box>
   );
@@ -164,9 +188,10 @@ export default function Chat() {
         <DialogTitle>Nueva conversación</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
+            {errNuevo && <Alert severity="error" onClose={() => setErrNuevo('')}>{errNuevo}</Alert>}
             <Autocomplete
               options={directorio.filter((d) => d.id !== user.uid)}
-              getOptionLabel={(o) => `${o.nombre}${o.cargo ? ` · ${o.cargo}` : ''}`}
+              getOptionLabel={(o) => `${txt(o.nombre) || 'Sin nombre'}${o.cargo ? ` · ${txt(o.cargo)}` : ''}`}
               value={destino}
               onChange={(_, v) => setDestino(v)}
               renderInput={(p) => <TextField {...p} label="Mensaje directo a…" />}
@@ -182,11 +207,15 @@ export default function Chat() {
             variant="contained"
             disabled={!destino && !nombreGrupo.trim()}
             onClick={async () => {
-              const id = destino ? await abrirDirecto(user, profile, destino) : await crearCanal(nombreGrupo.trim(), 'grupo');
-              setNuevo(false);
-              setDestino(null);
-              setNombreGrupo('');
-              open(id);
+              try {
+                const id = destino ? await abrirDirecto(user, profile, destino) : await crearCanal(nombreGrupo.trim(), 'grupo');
+                setNuevo(false);
+                setDestino(null);
+                setNombreGrupo('');
+                open(id);
+              } catch (err) {
+                setErrNuevo(errorText(err));
+              }
             }}
           >
             Abrir

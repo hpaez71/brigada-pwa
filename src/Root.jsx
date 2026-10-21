@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Loading from './components/Loading';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -29,6 +30,7 @@ export default function Root() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
+        <ErrorBoundary full>
         <Suspense fallback={<Loading full />}>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -55,6 +57,7 @@ export default function Root() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </ErrorBoundary>
       </AuthProvider>
     </ThemeProvider>
   );
