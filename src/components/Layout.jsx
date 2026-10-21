@@ -125,7 +125,9 @@ function Shell() {
   const [fgMsg, setFgMsg] = useState(null);
   usePresence();
 
-  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     let unsub = () => {};

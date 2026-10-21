@@ -42,7 +42,11 @@ function Conversacion({ canalId, onBack }) {
   );
   const msgs = useMemo(() => [...desc].reverse(), [desc]);
 
-  useEffect(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }), [msgs.length]);
+  // Llaves obligatorias: en navegadores recientes scrollIntoView devuelve una promesa, y React
+  // la trataría como función de limpieza («... is not a function»).
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [msgs.length]);
 
   const send = async (e) => {
     e?.preventDefault();
