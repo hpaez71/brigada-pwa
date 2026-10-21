@@ -29,6 +29,7 @@ import { ROLE_LABELS, EMERGENCIA_TIPOS, labelOf } from '../config/constants';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { onQueueChange, pendingCount, processQueue } from '../services/offlineQueue';
 import ErrorBoundary from './ErrorBoundary';
+import { APP_VERSION } from '../config/version';
 import Loading from './Loading';
 import { onForegroundMessage } from '../services/notifications';
 import { unlockAudio } from '../utils/alarm';
@@ -171,6 +172,7 @@ function Shell() {
         <ListItemIcon sx={{ minWidth: 40 }}><LogoutIcon /></ListItemIcon>
         <ListItemText primary="Cerrar sesión" />
       </ListItemButton>
+      <Typography variant="caption" color="text.secondary" sx={{ px: 2, pb: 1.5 }}>Versión {APP_VERSION}</Typography>
     </Box>
   );
 

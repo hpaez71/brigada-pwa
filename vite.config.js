@@ -1,6 +1,19 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+
+// Versión visible en la app: versión del paquete + fecha y hora de compilación (Colombia) + commit.
+function appVersion() {
+  const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+  let sha = '';
+  try { sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { /* sin git */ }
+  return `${pkg.version} · ${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}${sha ? ` · ${sha}` : ''}`;
+}
 
 // VITE_BASE debe ser "/<nombre-repo>/" en GitHub Pages (lo define el workflow).
 export default defineConfig(({ mode }) => {
@@ -9,6 +22,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     base,
+    define: { __APP_VERSION__: JSON.stringify(appVersion()) },
     plugins: [
       react(),
       VitePWA({

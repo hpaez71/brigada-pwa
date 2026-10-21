@@ -11,6 +11,7 @@ import { disablePush, enablePush, hasPushToken, isIOS, isStandalone, showLocalNo
 import { daysUntil, fmtDate } from '../utils/format';
 import { BrigadaChips } from '../components/Chips';
 import MapView from '../components/MapView';
+import { APP_VERSION, actualizarApp } from '../config/version';
 import PageHeader from '../components/PageHeader';
 
 export default function Perfil() {
@@ -35,6 +36,10 @@ export default function Perfil() {
   return (
     <>
       <PageHeader title="Mi perfil" />
+      <Alert severity="info" icon={false} sx={{ mb: 2 }}
+        action={<Button color="inherit" size="small" onClick={actualizarApp}>Buscar actualización</Button>}>
+        Versión de la app: <strong>{APP_VERSION}</strong>
+      </Alert>
       {msg && <Alert severity={msg.sev} onClose={() => setMsg(null)} sx={{ mb: 2 }}>{msg.text}</Alert>}
       {isIOS() && !isStandalone() && (
         <Alert severity="info" sx={{ mb: 2 }}>
