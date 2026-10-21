@@ -48,7 +48,8 @@ else
   aviso "Se mostrará un enlace: ábralo, elija su cuenta de Google, acepte"
   aviso "y copie el código que aparece. Péguelo aquí y pulse Enter."
   aviso "(Si pregunta por recopilar estadísticas, puede responder n)"
-  firebase login --no-localhost
+  # --reauth: también renueva una sesión vencida («credentials are no longer valid»).
+  firebase login --reauth --no-localhost
 fi
 
 # ---------------------------------------------------------------- 3
