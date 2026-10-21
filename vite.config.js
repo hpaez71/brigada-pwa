@@ -50,6 +50,8 @@ export default defineConfig(({ mode }) => {
         devOptions: { enabled: false, type: 'module' },
       }),
     ],
+    // Prototipo: nombres legibles en los errores para poder diagnosticarlos desde el celular.
+    esbuild: { minifyIdentifiers: false, keepNames: true },
     build: {
       chunkSizeWarningLimit: 1600,
       rollupOptions: {

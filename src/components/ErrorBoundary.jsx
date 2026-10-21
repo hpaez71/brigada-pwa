@@ -29,7 +29,7 @@ export function reloadForUpdate() {
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { error: null, reloading: false };
+    this.state = { error: null, reloading: false, stack: '' };
   }
 
   static getDerivedStateFromError(error) {
@@ -38,6 +38,9 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('Error en pantalla:', error, info?.componentStack);
+    const comp = String(info?.componentStack || '').split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 6).join('\n');
+    const st = String(error?.stack || '').split('\n').slice(0, 5).join('\n');
+    this.setState({ stack: `${st}\n--- componentes ---\n${comp}` });
     if (isChunkError(error) && reloadForUpdate()) this.setState({ reloading: true });
   }
 
@@ -66,6 +69,11 @@ export default class ErrorBoundary extends Component {
             <Alert severity="error" sx={{ wordBreak: 'break-word' }}>
               {String(error?.message || error)}
             </Alert>
+          )}
+          {!update && this.state.stack && (
+            <Box component="pre" sx={{ m: 0, p: 1, bgcolor: 'action.hover', borderRadius: 1, fontSize: 10, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 220, overflow: 'auto' }}>
+              {`Ruta: ${window.location.hash}\n${this.state.stack}`}
+            </Box>
           )}
           <Stack direction="row" spacing={1}>
             {!update && <Button onClick={() => this.setState({ error: null })}>Reintentar</Button>}
