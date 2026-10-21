@@ -28,9 +28,15 @@ git pull -q --rebase --autostash 2>/dev/null || true
 
 # ---------------------------------------------------------------- 1
 paso "1/8 Herramientas"
-if ! command -v firebase >/dev/null 2>&1; then
+# Instala o repara la herramienta si falta o quedó dañada (p. ej. «Permission denied»).
+if ! firebase --version >/dev/null 2>&1; then
   echo "Instalando Firebase CLI (1-2 minutos)…"
-  npm install -g firebase-tools --no-audit --no-fund --loglevel=error
+  npm install -g firebase-tools --no-audit --no-fund --loglevel=error || true
+  hash -r
+fi
+if ! firebase --version >/dev/null 2>&1; then
+  aviso "Usando Firebase CLI mediante npx (más lento la primera vez)."
+  firebase() { npx -y firebase-tools "$@"; }
 fi
 echo "Firebase CLI $(firebase --version)"
 
